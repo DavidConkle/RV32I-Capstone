@@ -1,6 +1,5 @@
 module imm_gen (
     input logic[31:0] instr;
-    input logic[6:0] opcode;
 
     //For future use if needed, not needed for base RV32I
     input logic[2:0] funct3;
@@ -11,6 +10,7 @@ module imm_gen (
 );
 
     always_comb begin
+        logic[6:0] opcode = instr[6:0]; //Opcode extract
         case(opcode)
             //U-type
             7'b0110111, 7'b0010111: imm = {instr[31:12], 12'b0};
