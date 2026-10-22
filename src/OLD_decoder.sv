@@ -1,6 +1,7 @@
 /*
 Header and other stuff
 */
+
 package rv32i_pkg;
     // we should decide global enum codes to use for each operation.
     // the following is my suggestion :)
