@@ -26,7 +26,7 @@ module register_file ( input  logic        clk,
 
             if (read_addr2 == 5'b0) begin
                 read_data2 = 32'b0;
-            end else if(write_enable && write_addr == read_data2) begin
+            end else if(write_enable && write_addr == read_addr2) begin
                 read_data2 = write_data;
             end else begin
                 read_data2 = registers[read_addr2];
