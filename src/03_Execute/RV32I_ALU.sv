@@ -21,8 +21,10 @@ module alu (
     // given two 32-bit inputs a and b, perform the operation specified by op and return the result
     input  logic [31:0] a,
     input  logic [31:0] b,
-    input  alu_ops     op,
-    output logic [31:0] result
+    input  alu_ops      op,
+    output logic [31:0] result,
+    output logic        zero_flag,
+    output logic        less_flag
 );
     always_comb begin
         case (op)
@@ -38,5 +40,16 @@ module alu (
             SLTU: result = (a < b) ? 32'b1 : 32'b0; // set less than unsigned
             default: result = 32'b0;
         endcase
+    end
+    // raise zero flag if the result is zero
+    assign zero_flag = (result == 32'b0);
+
+    // raise less flag if un/signed a < b
+    always_comb begin
+        if (alu_ctrl == ALU_SLTU) begin
+            less_flag = (a < b);                   // unsigned less than (BLTU, BGEU, SLTU)
+        end else begin
+            less_flag = ($signed(a) < $signed(b)); // signed less than (BLT, BGE, SLT)
+        end
     end
 endmodule
