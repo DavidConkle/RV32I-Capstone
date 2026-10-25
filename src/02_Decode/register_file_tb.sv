@@ -33,14 +33,15 @@ module register_file_tb;
     // Initialize inputs
     initial begin
 
+        // Test 1: both ports should read x0 as zero
         write_enable = 0;
         read_addr1   = 5'd0;
         read_addr2   = 5'd0;
         write_addr   = 5'd0;
         write_data   = 32'd0;
 
-        // Test 1: both ports should read x0 as zero
-        #10;
+        // small delay to allow combinational signals to settle
+        #1;  
 
         if (read_data1 != 32'd0 || read_data2 != 32'd0)
             $fatal(1, "Test 1 failed");
@@ -52,7 +53,10 @@ module register_file_tb;
         write_data = 32'd5;
         read_addr1 = 5'd2;
 
-        #10;
+        // only read data at next falling edge to give time for registers to update
+        @(negedge clk);  
+        // delay to avoid race between clock edge and cleanup     
+        #1;
 
         if(read_data1 != 32'd5)
             $fatal(1, "Test 2 failed");
@@ -66,7 +70,9 @@ module register_file_tb;
         write_data = 32'd9;
         read_addr2 = 5'd3;
 
-        #10;
+        // read data at next falling edge 
+        @(negedge clk);        
+        #1;
 
         if(read_data2 != 32'd9 || read_data1 != 32'd5)
             $fatal(1, "Test 3 failed");
@@ -80,7 +86,9 @@ module register_file_tb;
         write_data = 32'd10;
         read_addr1 = 5'd2;
 
-        #10;
+        // read data at next falling edge 
+        @(negedge clk);        
+        #1;
 
         if(read_data1 != 32'd5)
             $fatal(1, "Test 4 failed");
@@ -94,7 +102,9 @@ module register_file_tb;
         write_data = 32'd22;
         read_addr1 = 5'd0;
 
-        #10;
+        // read data at next falling edge 
+        @(negedge clk);        
+        #1;             
 
         if(read_data1 != 32'd0)
             $fatal(1, "Test 5 failed");
@@ -110,7 +120,9 @@ module register_file_tb;
         read_addr1 = 5'd2;
         read_addr2 = 5'd3;
 
-        #10;
+        // read data at next falling edge 
+        @(negedge clk);        
+        #1;
 
         if(read_data1 != 32'd11 || read_data2 != 32'd9)
             $fatal(1, "Test 6 failed");
