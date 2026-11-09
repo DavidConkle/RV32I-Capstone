@@ -27,7 +27,7 @@ typedef struct packed {
     logic        mem_write;
     logic        mem_read;
     logic        branch;
-    logic [1:0]  alu_op;
+    logic [3:0]  alu_op;
     logic        alu_src;
 } id_ex_reg_t;
 
@@ -73,7 +73,7 @@ module top (
     // instr. decode stage wires
     logic [31:0] id_rs1_data, id_rs2_data, id_imm;
     logic        id_reg_write, id_mem_to_reg, id_mem_write, id_mem_read, id_branch, id_alu_src;
-    logic [1:0]  id_alu_op;
+    logic [3:0]  id_alu_op;
 
     // writeback stage wires
     logic        wb_reg_write;

@@ -1,7 +1,7 @@
 /*
 Headder
 */
-module instructin_mem(
+module instruction_mem(
     input logic clk,
     input logic rst_n,
     input logic[31:0] pc,
