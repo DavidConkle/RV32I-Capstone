@@ -27,6 +27,8 @@ typedef struct packed {
     logic        mem_write;
     logic        mem_read;
     logic        branch;
+    logic        jump;
+    logic        is_jalr;   // flags JALR for target calculation
     logic [3:0]  alu_op;
     logic        alu_src;
 } id_ex_reg_t;
@@ -72,13 +74,23 @@ module top (
     
     // instr. decode stage wires
     logic [31:0] id_rs1_data, id_rs2_data, id_imm;
-    logic        id_reg_write, id_mem_to_reg, id_mem_write, id_mem_read, id_branch, id_alu_src;
+    logic        id_reg_write, id_mem_to_reg, id_mem_write, id_mem_read;
+    logic        id_branch, id_alu_src, id_jump, id_is_jalr;
     logic [3:0]  id_alu_op;
 
     // writeback stage wires
     logic        wb_reg_write;
     logic [4:0]  wb_rd;
     logic [31:0] wb_write_data;
+
+    // hazard control unit wires (requires HCU implementation)
+    logic [1:0]  forward_a;
+    logic [1:0]  forward_b;
+    assign forward_a = 2'b00; // temporarily tied 0
+    assign forward_b = 2'b00;
+
+    // global flush
+    logic flush;
 
     // need buffers between pipeline stages
     always_ff @(posedge clk or posedge rst) begin
@@ -89,9 +101,9 @@ module top (
             ex_mem_reg <= '0;
             mem_wb_reg <= '0;
         end else begin
-            // advance pipeline state
-            if_id_reg <= if_id_next;
-            id_ex_reg <= id_ex_next;
+            // flush on IF/ID and ID/EX if a branch/jump is taken
+            if_id_reg  <= flush ? '0 : if_id_next;
+            id_ex_reg  <= flush ? '0 : id_ex_next;
             ex_mem_reg <= ex_mem_next;
             mem_wb_reg <= mem_wb_next;
         end
@@ -112,14 +124,14 @@ module top (
     // instantiate program counter
     program_counter pc_reg (
         .clk(clk),
-        .en(1'b1),              // enable tied high for continuous fetching (update later for stall logic)
+        .en(1'b1),              // tied high for continuous fetching (update later for stall logic)
         .rst(rst),
         .pc_next(if_pc_next),   // routed from next-PC MUX
         .pc(if_pc_current)      // output to instruction memory and pipeline register
     );
 
     // instantiate instruction memory
-    instructin_mem imem (       // "instructin" matches spelling in the module definition
+    instruction_mem imem (
         .clk(clk),
         .rst_n(~rst),           // inverted reset since this module expects active-low (rst_n)
         .pc(if_pc_current),     // from PC
@@ -163,7 +175,9 @@ module top (
         .funct7(if_id_reg.inst[31:25]),      // 7 bit function code
         .alu_src(id_alu_src),                // selects between rs2 or immediate for ALU operand b
         .alu_op(id_alu_op),
-        .branch(id_branch),                  
+        .branch(id_branch),
+        .jump(id_jump),
+        .is_jalr(id_is_jalr),
         .mem_read(id_mem_read),
         .mem_write(id_mem_write),
         .reg_write(id_reg_write),
@@ -190,6 +204,8 @@ module top (
         id_ex_next.mem_write  = id_mem_write;
         id_ex_next.mem_read   = id_mem_read;
         id_ex_next.branch     = id_branch;
+        id_ex_next.jump       = id_jump;
+        id_ex_next.is_jalr    = id_is_jalr;
         id_ex_next.alu_op     = id_alu_op;
         id_ex_next.alu_src    = id_alu_src;
     end
@@ -199,19 +215,38 @@ module top (
     // execute stage
 
     // ALU input/output wires
-    logic [31:0] ex_alu_operand_a;
-    logic [31:0] ex_alu_operand_b;
-    logic [31:0] ex_alu_result;
-    logic        ex_alu_zero;
-    logic        ex_alu_less;
+    logic [31:0] ex_alu_operand_a, ex_alu_operand_b, ex_alu_result;
+    logic        ex_alu_zero, ex_alu_less;
+    logic [31:0] forwarded_a, forwarded_b;
+    logic [31:0] branch_target, jalr_target;
+    logic        ex_branch_condition_met, ex_branch_taken;
 
-    // operand a is read_data1 from register file (ignoring forwarding for now)
-    assign ex_alu_operand_a = id_ex_reg.rs1_data;
+    // Forwarding MUX A
+    always_comb begin
+        case(forward_a)
+            2'b00: forwarded_a = id_ex_reg.rs1_data;
+            2'b01: forwarded_a = wb_write_data;          // Forward from WB
+            2'b10: forwarded_a = ex_mem_reg.alu_result;  // Forward from MEM
+            default: forwarded_a = id_ex_reg.rs1_data;
+        endcase
+    end
+
+    // Forwarding MUX B
+    always_comb begin
+        case(forward_b)
+            2'b00: forwarded_b = id_ex_reg.rs2_data;
+            2'b01: forwarded_b = wb_write_data;          
+            2'b10: forwarded_b = ex_mem_reg.alu_result;  
+            default: forwarded_b = id_ex_reg.rs2_data;
+        endcase
+    end
+
+    assign ex_alu_operand_a = forwarded_a;
 
     // operand b MUX
     // 0: route read_data2 from register file (R-type instructions)
     // 1: route sign-extended immediate (I-type instructions)
-    assign ex_alu_operand_b = (id_ex_reg.alu_src) ? id_ex_reg.imm : id_ex_reg.rs2_data;
+    assign ex_alu_operand_b = (id_ex_reg.alu_src) ? id_ex_reg.imm : forwarded_b;
 
     // instantiate ALU
     alu main_alu (
@@ -222,9 +257,6 @@ module top (
         .zero(ex_alu_zero),
         .less(ex_alu_less)
     );
-
-    // branch condition evaluation logic
-    logic ex_branch_condition_met;
     
     always_comb begin
         case (id_ex_reg.funct3)
@@ -238,19 +270,23 @@ module top (
         endcase
     end
 
+    // branch target calculation
+    assign branch_target = id_ex_reg.pc + id_ex_reg.imm;
+    assign jalr_target = (forwarded_a + id_ex_reg.imm) & 32'hFFFFFFFE; 
+    assign ex_branch_taken = id_ex_reg.jump | (id_ex_reg.branch & ex_branch_condition_met);
+    assign flush = ex_branch_taken;
+
     // load EX/MEM next-state struct
     always_comb begin
-        ex_mem_next.pc_target    = id_ex_reg.pc + id_ex_reg.imm;
-        ex_mem_next.alu_result   = ex_alu_result;
-        ex_mem_next.rs2_data     = id_ex_reg.rs2_data;
+        ex_mem_next.pc_target    = (id_ex_reg.is_jalr) ? jalr_target : branch_target;
+        ex_mem_next.alu_result   = (id_ex_reg.jump) ? (id_ex_reg.pc + 32'd4) : ex_alu_result;
+        ex_mem_next.rs2_data     = forwarded_b;
         ex_mem_next.rd           = id_ex_reg.rd;
         ex_mem_next.reg_write    = id_ex_reg.reg_write;
         ex_mem_next.mem_to_reg   = id_ex_reg.mem_to_reg;
         ex_mem_next.mem_write    = id_ex_reg.mem_write;
         ex_mem_next.mem_read     = id_ex_reg.mem_read;
-        
-        // final branch decision: branch instruction AND condition met
-        ex_mem_next.branch_taken = id_ex_reg.branch & ex_branch_condition_met;
+        ex_mem_next.branch_taken = ex_branch_taken;
     end
 
 
@@ -260,13 +296,12 @@ module top (
     logic [31:0] mem_read_data;
 
     // instantiate data memory
-    // (Ensure the module name and ports match your actual data memory file)
     data_memory dmem (
         .clk(clk),
         .mem_write(ex_mem_reg.mem_write),
         .mem_read(ex_mem_reg.mem_read),
-        .addr(ex_mem_reg.alu_result),      // ALU calculates memory address
-        .write_data(ex_mem_reg.rs2_data),  // data to store
+        .addr(ex_mem_reg.alu_result), // ALU calculates memory address
+        .write_data(ex_mem_reg.rs2_data), // data to store
         .read_data(mem_read_data)
     );
 
