@@ -1,6 +1,4 @@
 package rv32i_pkg;
-    // we should decide global enum codes to use for each operation.
-    // the following is my suggestion :)
     typedef enum logic [3:0] {
         ADD  = 4'b0000,
         SUB  = 4'b0001,
@@ -46,7 +44,7 @@ module alu (
 
     // raise less flag if un/signed a < b
     always_comb begin
-        if (alu_ctrl == ALU_SLTU) begin
+        if (op == SLTU) begin
             less_flag = (a < b);                   // unsigned less than (BLTU, BGEU, SLTU)
         end else begin
             less_flag = ($signed(a) < $signed(b)); // signed less than (BLT, BGE, SLT)
