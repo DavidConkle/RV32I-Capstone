@@ -14,7 +14,7 @@
 * Author: Chris Poterek
 */
 
-module L1_cache #(
+module l1_instr_cache #(
     parameter int CACHE_SIZE = 1024, //Cache size in bytes
     parameter int BLOCK_SIZE = 16,   //Block size in bytes
     parameter int BLOCK_BITS = BLOCK_SIZE * 8 //Block size in bits
@@ -27,7 +27,7 @@ module L1_cache #(
     //CPU interface
     input logic [31:0] cpu_addr,        //PC addr
     output logic [31:0] cpu_instr,      //Instruction data to CPU
-    output logic cache_hit              //Cache hit signal
+    output logic cache_hit,              //Cache hit signal
 
     //Memory interface
     output logic mem_req,           //Memory request signal
@@ -38,7 +38,7 @@ module L1_cache #(
 
     //Parameters for cache configuration
     localparam int NUM_BLOCKS = CACHE_SIZE / BLOCK_SIZE; //Number of blocks in cache
-    localparam int WORDS_PER_BLOCK = BLOCK_SIZE / 4; //Number of words per block
+    localparam int WORDS_PER_BLOCK = BLOCK_SIZE / 4; //Number of words per block (4 is number of bytes in a word)
     localparam int INDEX_BITS = $clog2(NUM_BLOCKS); //Number of index bits
     localparam int OFFSET_BITS = $clog2(BLOCK_SIZE); //Number of offset bits
     localparam int TAG_BITS = 32 - INDEX_BITS - OFFSET_BITS; //Number of tag bits
@@ -50,7 +50,7 @@ module L1_cache #(
     logic [OFFSET_BITS-1:0] offset;
 
     assign tag = cpu_addr[31:32-TAG_BITS];
-    assign index = cpu_addr[32-TAG_BITS-1:OFFSET_BITS];
+    assign index = cpu_addr[31-TAG_BITS:OFFSET_BITS];
     assign offset = cpu_addr[OFFSET_BITS-1:0];
 
     //Cache memory
