@@ -52,7 +52,7 @@ module control_unit
     output cmp_ops     cmp_op,    // which branch comparison to evaluate
     output logic       jump,      // JAL or JALR (unconditional)
     output logic       jalr,      // 1 = target is rs1+imm, 0 = target is PC+imm
-    output logic       write_enable,    // 1 = write to register file
+    output logic       write_enable    // 1 = write to register file
     //output logic       mem_read,   // 1 = read from memory (load)
     //output logic       mem_write,  // 1 = write to memory (store)
 );

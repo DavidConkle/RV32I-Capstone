@@ -1,5 +1,3 @@
-'timescale 1ns/1ps
-
 module tb_test(
     logic clk,
     logic rst
@@ -9,7 +7,10 @@ module tb_test(
         .rst(rst)
     )
 
-    always #5 clk = ~clk;
+    initial begin 
+        clk = 0;
+        forever #5 clk = ~clk;
+    end
 
     initial begin
         clk = 0;
