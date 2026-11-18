@@ -29,7 +29,7 @@ module instruction_mem(
         //Get instrucion, clog2 gets how many bits are needed to address DEPTH in powers of 2,
         // add one to set upper bound (pc may be larger than instruction memory) 
         // slice off last two bits to divide by 4, assumes memory is alligned to multiples of 4 (byte adressable)
-        instr = instr_mem[$clog2(DEPTH)+1:2]; 
+        instr = instr_mem[pc[$clog2(DEPTH)+1:2]]; 
     end
 
 endmodule

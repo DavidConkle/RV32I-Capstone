@@ -71,7 +71,7 @@ module l1_instr_cache #(
     logic tag_match;
     assign tag_match = (valid[index] && (tags[index] == tag));
     assign cache_hit =  (state == IDLE) && tag_match;   //Makes sure cache isn't trying to get memory data when it is a hit
-    assign cpu_instr = (cache_hit) ? data[index][offset[OFFSET_BITS-1:2]*32 +: 32]: 32'b0; //Return instruction if hit, else return 0
+    assign cpu_instr = (cache_hit) ? data[index][offset[OFFSET_BITS-1:2]*32 +: 32]: 32'b0; //Return instruction if hit, else return 0 NEED TO FLUSH BUFFER BETWEEN FETCH AND DECODE
 
     //Memory outputs/requests
     assign mem_req = (state == REFILL);
