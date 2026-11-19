@@ -1,4 +1,4 @@
-module tb_test(
+module top_test(
     logic clk,
     logic rst
 );
