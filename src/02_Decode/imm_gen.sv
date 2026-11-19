@@ -1,12 +1,12 @@
 module imm_gen (
-    input logic[31:0] instr;
+    input logic[31:0] instr,
 
     //For future use if needed, not needed for base RV32I
-    input logic[2:0] funct3;
-    input logic[6:0] funct7; //funct5 + funct2 on sheet
+    input logic[2:0] funct3,
+    input logic[6:0] funct7, //funct5 + funct2 on sheet
 
     //Output immediate based on instruction type
-    output logic[31:0] imm;
+    output logic[31:0] imm
 );
 
     always_comb begin
@@ -22,6 +22,7 @@ module imm_gen (
             7'b1100011: imm = {{19{instr[31]}}, instr[31], instr[7], instr[30:25], instr[11:8], 1'b0};
             //S-type
             7'b0100011: imm = {{20{instr[31]}}, instr[31:25], instr[11:7]};
+            DEFAULT: imm = 32'b0
         endcase
     end
 endmodule

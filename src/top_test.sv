@@ -7,12 +7,10 @@ module tb_test(
         .rst(rst)
     )
 
-    initial begin 
-        clk = 0;
-        forever #5 clk = ~clk;
-    end
-
     initial begin
+        
+        forever #5 clk = ~clk;
+
         clk = 0;
         rst = 1;
 
