@@ -1,7 +1,7 @@
 /*
 Headder
 */
-module instruction_mem(
+module instruction_mem #(
     parameter WIDTH = 32, //Each instruction has 32 bits
     parameter DEPTH = 256, //Store up to 256 instructions, arbitrary number since no tapeout
     parameter FILE = "instr.hex" //Instruction file to load into memeory
