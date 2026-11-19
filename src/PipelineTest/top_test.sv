@@ -23,7 +23,7 @@ module top_test(
 
     initial begin 
         $dumpfile("dump.vcd");
-        $dumpvars(0, tb_test);
+        $dumpvars(0, top_test);
     end
 
 endmodule
