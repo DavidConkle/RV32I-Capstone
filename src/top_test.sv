@@ -5,7 +5,7 @@ module tb_test(
     top dut(
         .clk(clk),
         .rst(rst)
-    )
+    );
 
     initial begin
         
