@@ -1,18 +1,3 @@
-package rv32i_pkg;
-    typedef enum logic [3:0] {
-        ADD  = 4'b0000,
-        SUB  = 4'b0001,
-        AND  = 4'b0010,
-        OR   = 4'b0011,
-        XOR  = 4'b0100,
-        SLL  = 4'b0101,
-        SRL  = 4'b0110,
-        SRA  = 4'b0111,
-        SLT  = 4'b1000,
-        SLTU = 4'b1001
-    } alu_ops;
-endpackage
-
 import rv32i_pkg::*; // pulls in the package so we can use the enum codes in this module
 
 module alu (
@@ -24,6 +9,7 @@ module alu (
     output logic        zero_flag,
     output logic        less_flag
 );
+
     always_comb begin
         case (op)
             ADD:  result = a + b;
@@ -36,9 +22,11 @@ module alu (
             SRA:  result = $signed(a) >>> b[4:0];   // arithmetic right shift by the lower 5 bits of b
             SLT:  result = ($signed(a) < $signed(b)) ? 32'b1 : 32'b0; // set less than
             SLTU: result = (a < b) ? 32'b1 : 32'b0; // set less than unsigned
+            PASSB: result = b;
             default: result = 32'b0;
         endcase
     end
+    
     // raise zero flag if the result is zero
     assign zero_flag = (result == 32'b0);
 

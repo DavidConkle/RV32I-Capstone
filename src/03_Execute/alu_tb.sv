@@ -54,6 +54,9 @@ module alu_tb;
         run_test("SLT",  SLT,  -32'd5,          32'd3);           // -5 < 3 is true  (result=1, less=1)
         run_test("SLTU", SLTU, -32'd5,          32'd3);           // 0xFFFFFFFB < 3 is false (result=0, less=0)
 
+      	// Input B passthrough operation
+        run_test("PASSB", PASSB, -32'd5,			32'd3);
+        
         $finish;
     end
 endmodule
