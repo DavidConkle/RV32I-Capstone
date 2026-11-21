@@ -1,10 +1,6 @@
 module imm_gen (
     input logic[31:0] instr,
 
-    //For future use if needed, not needed for base RV32I
-    input logic[2:0] funct3,
-    input logic[6:0] funct7, //funct5 + funct2 on sheet
-
     //Output immediate based on instruction type
     output logic[31:0] imm
 );

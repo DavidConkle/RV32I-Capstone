@@ -47,14 +47,17 @@ module control_unit
     input  logic [6:0] funct7,
 
     output alu_ops     alu_op,    // operation select for the ALU
-    output logic       alu_src,   // 0 = ALU input B is rs2, 1 = ALU input B is immediate
+    output logic alu_src1,
+    output logic alu_src2,
+
     output logic       branch,    // instruction is a conditional branch
     output cmp_ops     cmp_op,    // which branch comparison to evaluate
     output logic       jump,      // JAL or JALR (unconditional)
     output logic       jalr,      // 1 = target is rs1+imm, 0 = target is PC+imm
-    output logic       write_enable    // 1 = write to register file
-    //output logic       mem_read,   // 1 = read from memory (load)
-    //output logic       mem_write,  // 1 = write to memory (store)
+    
+    output logic       write_enable,    // 1 = write to register file
+    output logic       mem_read,   // 1 = read from memory (load)
+    output logic       mem_write,  // 1 = write to memory (store)
 );
 
     // ALU op decode for R-type and I-type operations
@@ -75,12 +78,16 @@ module control_unit
     always_comb begin
         // Default outputs
         alu_op  = ADD;
-        alu_src = 1'b0;
+        alu_src1 = 1'b0;
+        alu_src2 = 1'b0;
         branch  = 1'b0;
         cmp_op  = BEQ;
         jump    = 1'b0;
         jalr    = 1'b0;
-
+        mem_read = 1'b0;
+        mem_write = 1'b0;
+        write_enable = 1'b0;
+        
         case (opcode)
             OP_R: begin
                 alu_op = decode_alu(funct3, funct7[5]);
@@ -88,14 +95,28 @@ module control_unit
             end
 
             OP_IMM: begin
-                alu_src = 1'b1;
+                alu_src2 = 1'b1;
                 alu_op  = decode_alu(funct3, (funct3 == 3'b101) && funct7[5]);
                 write_enable = 1'b1;
             end
 
+
+            OP_LOAD: begin
+                alu_src2 = 1'b1;
+                alu_op = ADD;
+                mem_read = 1'b1;
+                write_enable = 1'b1;
+            end 
+
+            OP_STORE: begin
+                alu_src2 = 1'b1;
+                alu_op = ADD;
+                mem_write = 1'b1;
+            end
+
             OP_BRANCH: begin
                 branch  = 1'b1;
-                alu_src = 1'b0;        // compare rs1 vs rs2
+                alu_src2 = 1'b0;        // compare rs1 vs rs2
                 cmp_op  = cmp_ops'(funct3);
                 // Pick the ALU op that produces the needed comparison result
                 case (funct3[2:1])
@@ -114,8 +135,21 @@ module control_unit
             OP_JALR: begin
                 jump    = 1'b1;
                 jalr    = 1'b1;
-                alu_src = 1'b1;
+                alu_src2 = 1'b1;
                 alu_op  = ADD;         // target = rs1 + imm (clear bit 0 in datapath)
+                write_enable = 1'b1;
+            end
+
+            OP_LUI: begin
+                alu_src2 = 1'b1;
+                alu_op = PASSB;
+                write_enable = 1'b1;
+            end
+
+            OP_AUIPC: begin
+                alu_src1 = 1'b1;
+                alu_src2 = 1'b1;
+                alu_op = ADD;
                 write_enable = 1'b1;
             end
 
