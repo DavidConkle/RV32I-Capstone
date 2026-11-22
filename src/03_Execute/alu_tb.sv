@@ -33,7 +33,7 @@ module alu_tb;
     endtask
 
     initial begin
-        $dumpfile("alu_wave.vcd");
+        $dumpfile("build/waves/alu_wave.vcd");
         $dumpvars(0, alu_tb);
 
         // arithmetic ops (testing normal math and zero_flag)

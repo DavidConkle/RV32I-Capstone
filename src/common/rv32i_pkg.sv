@@ -37,4 +37,4 @@ package rv32i_pkg;
     localparam logic [6:0] OP_JALR   = 7'b1100111;
     localparam logic [6:0] OP_LUI    = 7'b0110111;
     localparam logic [6:0] OP_AUIPC  = 7'b0010111;
-endpackagepackage rv32i_pkg;
+endpackage
