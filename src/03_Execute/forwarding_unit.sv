@@ -13,17 +13,17 @@ module forwarding_unit (
     always_comb begin
         // Operand A
         if (WriteEnable_M && (rd_MEM != 5'd0) && (rd_MEM == rs1_EX))
-            forward_a = 2'b10;
-        else if (WriteEnable_WB && (rd_WB != 5'd0) && (rd_WB == rs1_EX))
             forward_a = 2'b01;
+        else if (WriteEnable_WB && (rd_WB != 5'd0) && (rd_WB == rs1_EX))
+            forward_a = 2'b10;
         else
             forward_a = 2'b00;
 
         // Operand B
         if (WriteEnable_M && (rd_MEM != 5'd0) && (rd_MEM == rs2_EX))
-            forward_b = 2'b10;
-        else if (WriteEnable_WB && (rd_WB != 5'd0) && (rd_WB == rs2_EX))
             forward_b = 2'b01;
+        else if (WriteEnable_WB && (rd_WB != 5'd0) && (rd_WB == rs2_EX))
+            forward_b = 2'b10;
         else
             forward_b = 2'b00;
     end
