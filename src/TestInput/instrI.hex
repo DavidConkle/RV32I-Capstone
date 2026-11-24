@@ -1,0 +1,38 @@
+// ====== I-type ALU (register-immediate) test: 18 instructions ======
+//
+// Expected final register values (registers not listed stay 0):
+//   x1  = 0xF2345678
+//   x2  = 0x07654FED
+//   x3  = 0xF2345677
+//   x4  = 0x07654BED
+//   x5  = 0x00000001
+//   x6  = 0x00000000
+//   x7  = 0x0DCBA987
+//   x8  = 0x07654FFD
+//   x9  = 0x00000678
+//   x10 = 0x23456780
+//   x11 = 0x0F234567
+//   x12 = 0xFF234567
+//
+//
+F23450B7 // lui x1, 0xF2345        : x1 = 0xF2345 << 12 -> x1 = 0xF2345000
+07655137 // lui x2, 0x07655        : x2 = 0x07655 << 12 -> x2 = 0x07655000
+67808093 // addi x1, x1, 1656      : x1 = x1 + 1656 -> x1 = 0xF2345678
+FED10113 // addi x2, x2, -19       : x2 = x2 + -19 -> x2 = 0x07654FED
+FFF08193 // addi x3, x1, -1        : x3 = x1 + -1 -> x3 = 0xF2345677
+C0010213 // addi x4, x2, -1024     : x4 = x2 + -1024 -> x4 = 0x07654BED
+0010A293 // slti x5, x1, 1         : x5 = (x1 < 1) signed ? 1 : 0 -> x5 = 0x00000001
+0010B313 // sltiu x6, x1, 1        : x6 = (x1 < 1) unsigned ? 1 : 0 -> x6 = 0x00000000
+FFF0C393 // xori x7, x1, -1        : x7 = x1 ^ -1 -> x7 = 0x0DCBA987
+0F016413 // ori x8, x2, 240        : x8 = x2 | 240 -> x8 = 0x07654FFD
+7FF0F493 // andi x9, x1, 2047      : x9 = x1 & 2047 -> x9 = 0x00000678
+00409513 // slli x10, x1, 4        : x10 = x1 << 4 -> x10 = 0x23456780
+0040D593 // srli x11, x1, 4        : x11 = x1 >> 4 (logical) -> x11 = 0x0F234567
+4040D613 // srai x12, x1, 4        : x12 = x1 >> 4 (arithmetic) -> x12 = 0xFF234567
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)

@@ -1,0 +1,36 @@
+// ====== U-type (lui / auipc) test: 12 instructions ======
+//
+// Expected final register values (registers not listed stay 0):
+//   x1  = 0xABCDE000
+//   x2  = 0x00001000
+//   x3  = 0xFFFFF000
+//   x4  = 0x80000000
+//   x5  = 0x00000010
+//   x6  = 0x00001014
+//   x7  = 0xFFFFF018
+//   x8  = 0x8000001C
+//
+//
+ABCDE0B7 // lui x1, 0xABCDE        : x1 = 0xABCDE << 12 -> x1 = 0xABCDE000
+00001137 // lui x2, 0x00001        : x2 = 0x00001 << 12 -> x2 = 0x00001000
+FFFFF1B7 // lui x3, 0xFFFFF        : x3 = 0xFFFFF << 12 -> x3 = 0xFFFFF000
+80000237 // lui x4, 0x80000        : x4 = 0x80000 << 12 -> x4 = 0x80000000
+00000297 // auipc x5, 0x0          : x5 = PC (0x10) + (0x00000 << 12) -> x5 = 0x00000010
+00001317 // auipc x6, 0x1          : x6 = PC (0x14) + (0x00001 << 12) -> x6 = 0x00001014
+FFFFF397 // auipc x7, 0xFFFFF      : x7 = PC (0x18) + (0xFFFFF << 12) -> x7 = 0xFFFFF018
+80000417 // auipc x8, 0x80000      : x8 = PC (0x1C) + (0x80000 << 12) -> x8 = 0x8000001C
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
+00000013 // nop                    : nop: no operation (keeps the pipeline draining)
