@@ -1,330 +1,296 @@
-// pipeline register struct definitions
+// -----------------------------------------------------------------------------
+// rv32i_top.sv
+//
+// Top level of the 5-stage RV32I pipeline (IF / ID / EX / MEM / WB).
+//
+// -----------------------------------------------------------------------------
 
-// instruction fetch/decode pipeline register
-typedef struct packed {
-    logic [31:0] pc;
-    logic [31:0] inst;
-} if_id_reg_t;
-
-// ID/EX pipeline register
-typedef struct packed {
-    // data pathways
-    logic [31:0] pc;
-    logic [31:0] rs1_data;
-    logic [31:0] rs2_data;
-    logic [31:0] imm;
-    
-    // instruction fields for forwarding and decoding
-    logic [4:0]  rs1; // 5 bit source register 1
-    logic [4:0]  rs2; // 5 bit source register 2
-    logic [4:0]  rd;  // 5 bit destination register
-    logic [2:0]  funct3; // 3 bit function code
-    logic [6:0]  funct7; // 7 bit function code
-    
-    // control signals
-    logic        reg_write;
-    logic        mem_to_reg;
-    logic        mem_write;
-    logic        mem_read;
-    logic        branch;
-    logic        jump;
-    logic        is_jalr;   // flags JALR for target calculation
-    logic [3:0]  alu_op;
-    logic        alu_src;
-} id_ex_reg_t;
-
-// EX/MEM pipeline register
-typedef struct packed {
-    logic [31:0] pc_target;    // calculated branch target
-    logic [31:0] alu_result;
-    logic [31:0] rs2_data;     // data to write to memory
-    logic [4:0]  rd;           // destination register
-    logic        reg_write;
-    logic        mem_to_reg;
-    logic        mem_write;
-    logic        mem_read;
-    logic        branch_taken; // 1 if branch condition met and is a branch instr
-} ex_mem_reg_t;
-
-// MEM/WB pipeline register
-typedef struct packed {
-    logic [31:0] alu_result;
-    logic [31:0] mem_data;     // data read from memory
-    logic [4:0]  rd;
-    logic        reg_write;
-    logic        mem_to_reg;
-} mem_wb_reg_t;
-
-
-
-// top-level datapath module
-module top (
-    input  logic clk,
-    input  logic rst
+module rv32i_top (
+  input logic CLK,
+  input logic RST
 );
 
-    // instantiate pipeline registers
-    if_id_reg_t if_id_reg, if_id_next;
-    id_ex_reg_t id_ex_reg, id_ex_next;
-    ex_mem_reg_t ex_mem_reg, ex_mem_next;
-    mem_wb_reg_t mem_wb_reg, mem_wb_next;
+  // ===========================================================================
+  // Pipeline register contents
+  // ===========================================================================
 
-    // instr. fetch stage wires
-    logic [31:0] if_pc_current, if_pc_next, if_inst;
+  typedef struct packed {
+    logic [31:0] PC;
+    logic [31:0] Instr;
+  } if_id_t;
+
+  typedef struct packed {
+    // control
+    logic        WriteEnable;
+    logic [2:0]  Funct3;
+    logic        WriteSel;
+    logic        MemWrite;
+    logic        MemRead;				// May be used later
+    logic        RS2Source;
+    logic        RS1Source;
+    logic [3:0]  ALUControl;
+    // data
+    logic [31:0] PC;
+    logic [31:0] D1;
+    logic [31:0] D2;
+    logic [4:0]  RD;
+    logic [31:0] ImmExt;
+    logic [4:0]  RS1Addr;
+    logic [4:0]  RS2Addr;
+  } id_ex_t;
+
+  typedef struct packed {
+    logic        WriteEnable;
+    logic [2:0]  Funct3;
+    logic        WriteSel;
+    logic        MemWrite;
+    logic	     MemRead;				// May be used later
+    logic [31:0] ALUOut;
+    logic [31:0] D2Fwd;
+    logic [4:0]  RD;
+  } ex_mem_t;
+
+  typedef struct packed {
+    logic        WriteEnable;
+    logic        WriteSel;
+    logic [31:0] ALUOut;
+    logic [31:0] MemAl;
+    logic [4:0]  RD;
+  } mem_wb_t;
+
+  // in = value entering the register, out = value leaving the register
+  if_id_t  if_id_in;
+  id_ex_t  id_ex_in;
+  ex_mem_t ex_mem_in;
+  mem_wb_t mem_wb_in;
+
+  if_id_t  if_id_out;
+  id_ex_t  id_ex_out;
+  ex_mem_t ex_mem_out;
+  mem_wb_t mem_wb_out;
+
+  // CLR and EN for each register, as well as the program counter
+  logic CLR_PC,    EN_n_PC;
+  logic CLR_IF_ID, EN_n_IF_ID;
+  logic CLR_ID_EX, EN_n_ID_EX;
+  logic CLR_EX_M,  EN_n_EX_M;
+  logic CLR_M_WB,  EN_n_M_WB;
+
+  // Set to CPU RST input signal so the CPU resets when RST is asserted
+  assign CLR_PC = RST;
+  assign CLR_IF_ID = RST;
+  assign CLR_ID_EX = RST;
+  assign CLR_EX_M  = RST;
+  assign CLR_M_WB = RST;
+  
+  // Enable all registers and PC since enable input is not yet used
+  assign EN_n_PC = 1'b1;
+  assign EN_n_IF_ID = 1'b0;
+  assign EN_n_ID_EX = 1'b0;
+  assign EN_n_EX_M = 1'b0;
+  assign EN_n_M_WB = 1'b0;
+
+  // ===========================================================================
+  // Remaining (non-registered) signals
+  // ===========================================================================
+
+  // IF
+  logic [31:0] PC;
+  logic [31:0] PCNext, Instr_IF;
+
+  // EX
+  logic [1:0]  RS1_FWD, RS2_FWD;
+  logic [31:0] D1Fwd_EX, D2Fwd_EX, ALUIn1, ALUIn2, ALUOut_EX;
+
+  // MEM
+  logic [31:0] Mem_M, MemAl_M;
+
+  // WB
+  logic [31:0] RegData;
+
+  // ===========================================================================
+  // IF stage
+  // ===========================================================================
+
+  // PC register (Active-low EN tied to 0 in the schematic)
+  program_counter u_program_counter(
+    .clk(CLK),
+    .en(EN_n_PC),
+    .rst(CLR_PC),
+    .pc_next(PCNext),
     
-    // instr. decode stage wires
-    logic [31:0] id_rs1_data, id_rs2_data, id_imm;
-    logic        id_reg_write, id_mem_to_reg, id_mem_write, id_mem_read;
-    logic        id_branch, id_alu_src, id_jump, id_is_jalr;
-    logic [3:0]  id_alu_op;
-
-    // writeback stage wires
-    logic        wb_reg_write;
-    logic [4:0]  wb_rd;
-    logic [31:0] wb_write_data;
-
-    // hazard control unit wires (requires HCU implementation)
-    logic [1:0]  forward_a;
-    logic [1:0]  forward_b;
-    assign forward_a = 2'b00; // temporarily tied 0
-    assign forward_b = 2'b00;
-
-    // global flush
-    logic flush;
-
-    // need buffers between pipeline stages
-    always_ff @(posedge clk or posedge rst) begin
-        if (rst) begin
-            // reset all pipeline registers to 0
-            if_id_reg <= '0;
-            id_ex_reg <= '0;
-            ex_mem_reg <= '0;
-            mem_wb_reg <= '0;
-        end else begin
-            // flush on IF/ID and ID/EX if a branch/jump is taken
-            if_id_reg  <= flush ? '0 : if_id_next;
-            id_ex_reg  <= flush ? '0 : id_ex_next;
-            ex_mem_reg <= ex_mem_next;
-            mem_wb_reg <= mem_wb_next;
-        end
-    end
-
-
-
-    // instruction fetch combinational logic
-
-    logic [31:0] if_pc_plus_4;
+    .pc(PC)
+  );
     
-    // PC increment
-    assign if_pc_plus_4 = if_pc_current + 32'd4;
+  // Adder: PC + 4
+  assign PCNext = PC + 32'd4;
 
-    // next-PC MUX: selects either branch target (from EX/MEM) or PC+4
-    assign if_pc_next = (ex_mem_reg.branch_taken) ? ex_mem_reg.pc_target : if_pc_plus_4;
-
-    // instantiate program counter
-    program_counter pc_reg (
-        .clk(clk),
-        .en(1'b1),              // tied high for continuous fetching (update later for stall logic)
-        .rst(rst),
-        .pc_next(if_pc_next),   // routed from next-PC MUX
-        .pc(if_pc_current)      // output to instruction memory and pipeline register
-    );
-
-    // instantiate instruction memory
-    instruction_mem imem (
-        .clk(clk),
-        .rst_n(~rst),           // inverted reset since this module expects active-low (rst_n)
-        .pc(if_pc_current),     // from PC
-        .instr(if_inst)         // outputs 32 bit instruction to the IF/ID pipeline register
-    );
-
-    // load IF/ID next-state struct
-    always_comb begin
-        if_id_next.pc   = if_pc_current;
-        if_id_next.inst = if_inst;
-    end
-
-
-
-    // instruction decode combinational logic
+  instruction_mem u_instruction_mem (
+    .clk(CLK),            // Not used in design, will be used later with cache possibly
+    .rst_n(1'b1),		  // Not used in design, idk why here
+    .pc(PC),
     
-    // instantiate immediate generator
-    imm_gen ig (
-        .instr(if_id_reg.inst), // 32-bit instruction from the IF/ID register
-        .imm(id_imm)            // decoded 32 bit immediate value
-    );
+    .instr(Instr_IF)
+  );
 
-    // instantiate register file
-    // note: write_enable, write_addr, and write_data MUST be routed from final WB pipeline stage, not the current instr.
-    register_file reg_file (
-        .clk(clk),
-        .read_addr1(if_id_reg.inst[19:15]),
-        .read_addr2(if_id_reg.inst[24:20]),
-        .write_enable(wb_reg_write),         // control signal fed back from WB stage
-        .write_addr(wb_rd),                  // destination register fed back from WB stage
-        .write_data(wb_write_data),          // final computed data fed back from WB stage
-        .read_data1(id_rs1_data),            // output data 1 routed to ID/EX struct
-        .read_data2(id_rs2_data)             // output data 2 routed to ID/EX struct
-    );
+  // IF/ID register input
+  assign if_id_in.PC    = PC;
+  assign if_id_in.Instr = Instr_IF;
 
-    // instantiate control unit
-    // decodes instruction fields to generate datapath control signals
-    control_unit ctrl_unit (
-        .opcode(if_id_reg.inst[6:0]),        // 7 bit opcode
-        .funct3(if_id_reg.inst[14:12]),      // 3 bit function code
-        .funct7(if_id_reg.inst[31:25]),      // 7 bit function code
-        .alu_src(id_alu_src),                // selects between rs2 or immediate for ALU operand b
-        .alu_op(id_alu_op),
-        .branch(id_branch),
-        .jump(id_jump),
-        .is_jalr(id_is_jalr),
-        .mem_read(id_mem_read),
-        .mem_write(id_mem_write),
-        .reg_write(id_reg_write),
-        .mem_to_reg(id_mem_to_reg)
-    );
+  // Update register content at positive clock edge
+  always_ff @(posedge CLK) begin
+    if (CLR_IF_ID)        if_id_out <= '0;
+    else if (!EN_n_IF_ID) if_id_out <= if_id_in;
+  end
 
-    // load ID/EX next-state struct
-    always_comb begin
-        id_ex_next.pc         = if_id_reg.pc;
-        id_ex_next.rs1_data   = id_rs1_data;
-        id_ex_next.rs2_data   = id_rs2_data;
-        id_ex_next.imm        = id_imm;
-        
-        // get standard RV32I fields from buffered instr.
-        id_ex_next.rs1        = if_id_reg.inst[19:15];
-        id_ex_next.rs2        = if_id_reg.inst[24:20];
-        id_ex_next.rd         = if_id_reg.inst[11:7];
-        id_ex_next.funct3     = if_id_reg.inst[14:12];
-        id_ex_next.funct7     = if_id_reg.inst[31:25];
-        
-        // assign control signals
-        id_ex_next.reg_write  = id_reg_write;
-        id_ex_next.mem_to_reg = id_mem_to_reg;
-        id_ex_next.mem_write  = id_mem_write;
-        id_ex_next.mem_read   = id_mem_read;
-        id_ex_next.branch     = id_branch;
-        id_ex_next.jump       = id_jump;
-        id_ex_next.is_jalr    = id_is_jalr;
-        id_ex_next.alu_op     = id_alu_op;
-        id_ex_next.alu_src    = id_alu_src;
-    end
+  // ===========================================================================
+  // ID stage
+  // ===========================================================================
 
+  assign id_ex_in.RS1Addr = if_id_out.Instr[19:15];
+  assign id_ex_in.RS2Addr = if_id_out.Instr[24:20];
+  assign id_ex_in.RD      = if_id_out.Instr[11:7];
+  assign id_ex_in.PC      = if_id_out.PC;
+
+  control_unit u_control_unit (
+    .opcode      (if_id_out.Instr[6:0]),
+    .funct3      (if_id_out.Instr[14:12]),
+    .funct7      (if_id_out.Instr[31:25]), 
     
+    .ALUControl  (id_ex_in.ALUControl),
+    .RS1Source   (id_ex_in.RS1Source),
+    .RS2Source   (id_ex_in.RS2Source),
+    .MemWrite    (id_ex_in.MemWrite),
+    .WriteSel    (id_ex_in.WriteSel),
+    .Funct3      (id_ex_in.Funct3),
+    .WriteEnable (id_ex_in.WriteEnable)
+  );
 
-    // execute stage
-
-    // ALU input/output wires
-    logic [31:0] ex_alu_operand_a, ex_alu_operand_b, ex_alu_result;
-    logic        ex_alu_zero, ex_alu_less;
-    logic [31:0] forwarded_a, forwarded_b;
-    logic [31:0] branch_target, jalr_target;
-    logic        ex_branch_condition_met, ex_branch_taken;
-
-    // Forwarding MUX A
-    always_comb begin
-        case(forward_a)
-            2'b00: forwarded_a = id_ex_reg.rs1_data;
-            2'b01: forwarded_a = wb_write_data;          // Forward from WB
-            2'b10: forwarded_a = ex_mem_reg.alu_result;  // Forward from MEM
-            default: forwarded_a = id_ex_reg.rs1_data;
-        endcase
-    end
-
-    // Forwarding MUX B
-    always_comb begin
-        case(forward_b)
-            2'b00: forwarded_b = id_ex_reg.rs2_data;
-            2'b01: forwarded_b = wb_write_data;          
-            2'b10: forwarded_b = ex_mem_reg.alu_result;  
-            default: forwarded_b = id_ex_reg.rs2_data;
-        endcase
-    end
-
-    assign ex_alu_operand_a = forwarded_a;
-
-    // operand b MUX
-    // 0: route read_data2 from register file (R-type instructions)
-    // 1: route sign-extended immediate (I-type instructions)
-    assign ex_alu_operand_b = (id_ex_reg.alu_src) ? id_ex_reg.imm : forwarded_b;
-
-    // instantiate ALU
-    alu main_alu (
-        .a(ex_alu_operand_a),
-        .b(ex_alu_operand_b),
-        .alu_op(id_ex_reg.alu_op),
-        .result(ex_alu_result),
-        .zero(ex_alu_zero),
-        .less(ex_alu_less)
-    );
+  register_file u_register_file (
+    .clk          (CLK),
+    .read_addr1   (if_id_out.Instr[19:15]),
+    .read_addr2   (if_id_out.Instr[24:20]),
+    .write_enable (mem_wb_out.WriteEnable),
+    .write_addr   (mem_wb_out.RD),
+    .write_data   (RegData),
     
-    always_comb begin
-        case (id_ex_reg.funct3)
-            3'b000: ex_branch_condition_met = ex_alu_zero;           // BEQ
-            3'b001: ex_branch_condition_met = ~ex_alu_zero;          // BNE
-            3'b100: ex_branch_condition_met = ex_alu_less;           // BLT
-            3'b101: ex_branch_condition_met = ~ex_alu_less;          // BGE
-            3'b110: ex_branch_condition_met = ex_alu_less;           // BLTU
-            3'b111: ex_branch_condition_met = ~ex_alu_less;          // BGEU
-            default: ex_branch_condition_met = 1'b0;
-        endcase
-    end
+    .read_data1   (id_ex_in.D1),
+    .read_data2   (id_ex_in.D2)
+  );
 
-    // branch target calculation
-    assign branch_target = id_ex_reg.pc + id_ex_reg.imm;
-    assign jalr_target = (forwarded_a + id_ex_reg.imm) & 32'hFFFFFFFE; 
-    assign ex_branch_taken = id_ex_reg.jump | (id_ex_reg.branch & ex_branch_condition_met);
-    assign flush = ex_branch_taken;
-
-    // load EX/MEM next-state struct
-    always_comb begin
-        ex_mem_next.pc_target    = (id_ex_reg.is_jalr) ? jalr_target : branch_target;
-        ex_mem_next.alu_result   = (id_ex_reg.jump) ? (id_ex_reg.pc + 32'd4) : ex_alu_result;
-        ex_mem_next.rs2_data     = forwarded_b;
-        ex_mem_next.rd           = id_ex_reg.rd;
-        ex_mem_next.reg_write    = id_ex_reg.reg_write;
-        ex_mem_next.mem_to_reg   = id_ex_reg.mem_to_reg;
-        ex_mem_next.mem_write    = id_ex_reg.mem_write;
-        ex_mem_next.mem_read     = id_ex_reg.mem_read;
-        ex_mem_next.branch_taken = ex_branch_taken;
-    end
-
-
-
-    // memory combinational logic
+  imm_gen u_imm_gen (
+    .instr    (if_id_out.Instr),
+    .funct3   (if_id_out.Instr[14:12]),			// For potential future use?
+    .funct7   (if_id_out.Instr[31:25]),			// 
     
-    logic [31:0] mem_read_data;
+    .imm      (id_ex_in.ImmExt)
+  );
+  
+  // Update register content at positive clock edge
+  always_ff @(posedge CLK) begin
+    if (CLR_ID_EX)        id_ex_out <= '0;
+    else if (!EN_n_ID_EX) id_ex_out <= id_ex_in;
+  end
 
-    // instantiate data memory
-    data_memory dmem (
-        .clk(clk),
-        .mem_write(ex_mem_reg.mem_write),
-        .mem_read(ex_mem_reg.mem_read),
-        .addr(ex_mem_reg.alu_result), // ALU calculates memory address
-        .write_data(ex_mem_reg.rs2_data), // data to store
-        .read_data(mem_read_data)
-    );
+  // ===========================================================================
+  // EX stage
+  // ===========================================================================
 
-    // load MEM/WB next-state struct
-    always_comb begin
-        mem_wb_next.alu_result = ex_mem_reg.alu_result;
-        mem_wb_next.mem_data   = mem_read_data;
-        mem_wb_next.rd         = ex_mem_reg.rd;
-        mem_wb_next.reg_write  = ex_mem_reg.reg_write;
-        mem_wb_next.mem_to_reg = ex_mem_reg.mem_to_reg;
-    end
-
-
-
-    // writeback combinational logic
+  forwarding_unit u_forwarding_unit (
+    .rs1_EX         (id_ex_out.RS1Addr),
+    .rs2_EX         (id_ex_out.RS2Addr),
+    .rd_MEM         (ex_mem_out.RD),
+    .rd_WB          (mem_wb_out.RD),
+    .WriteEnable_M  (ex_mem_out.WriteEnable),
+    .WriteEnable_WB (mem_wb_out.WriteEnable),
     
-    // drive  writeback wires that connect back to the register file
-    assign wb_reg_write = mem_wb_reg.reg_write;
-    assign wb_rd        = mem_wb_reg.rd;
+    .forward_a      (RS1_FWD),
+    .forward_b      (RS2_FWD)
+  );
 
-    // memory to register MUX
-    // 0: route ALU result to destination register
-    // 1: route memory read data to destination register
-    assign wb_write_data = (mem_wb_reg.mem_to_reg) ? mem_wb_reg.mem_data : mem_wb_reg.alu_result;
+  // Forwarding muxes: 00/default = register file, 01 = ALUOut_M (MEM), 10 = RegData (WB)
+  always_comb begin
+    case (RS1_FWD)
+      2'b01:   D1Fwd_EX = ex_mem_out.ALUOut;
+      2'b10:   D1Fwd_EX = RegData;
+      default: D1Fwd_EX = id_ex_out.D1;
+    endcase
+
+    case (RS2_FWD)
+      2'b01:   D2Fwd_EX = ex_mem_out.ALUOut;
+      2'b10:   D2Fwd_EX = RegData;
+      default: D2Fwd_EX = id_ex_out.D2;
+    endcase
+  end
+
+  // ALU input muxes
+  assign ALUIn1 = id_ex_out.RS1Source ? id_ex_out.PC     : D1Fwd_EX;   // 1 = PC (For AUIPC)
+  assign ALUIn2 = id_ex_out.RS2Source ? id_ex_out.ImmExt : D2Fwd_EX;   // 1 = immediate
+
+  alu u_alu (
+    .a          (ALUIn1),
+    .b          (ALUIn2),
+    .op         (id_ex_out.ALUControl),
+    
+    .result     (ALUOut_EX),
+    .zero_flag  (),                 // not used yet (no branch hardware)
+    .less_flag  ()                  // not used yet (no branch hardware)
+  );
+
+  // EX/MEM register
+  assign ex_mem_in.WriteEnable = id_ex_out.WriteEnable;
+  assign ex_mem_in.Funct3      = id_ex_out.Funct3;
+  assign ex_mem_in.WriteSel    = id_ex_out.WriteSel;
+  assign ex_mem_in.MemWrite    = id_ex_out.MemWrite;
+  assign ex_mem_in.ALUOut      = ALUOut_EX;
+  assign ex_mem_in.D2Fwd       = D2Fwd_EX;
+  assign ex_mem_in.RD          = id_ex_out.RD;
+
+  // Update register content at positive clock edge
+  always_ff @(posedge CLK) begin
+    if (CLR_EX_M)        ex_mem_out <= '0;
+    else if (!EN_n_EX_M) ex_mem_out <= ex_mem_in;
+  end
+
+  // ===========================================================================
+  // MEM stage
+  // ===========================================================================
+
+  // rst is tied low
+  mem_interface u_mem_interface (
+    .clk       (CLK),
+    .rst       (1'b0),
+    .addr      (ex_mem_out.ALUOut),
+    .wdata     (ex_mem_out.D2Fwd),
+    .write_en  (ex_mem_out.MemWrite),
+    
+    .rdata     (Mem_M)
+  );
+
+  data_aligner u_data_aligner (
+    .mem_data     (Mem_M),
+    .funct3       (ex_mem_out.Funct3),
+    .addr_lsb     (ex_mem_out.ALUOut[1:0]),
+    .mem_aligned  (MemAl_M)
+  );
+
+  // MEM/WB register
+  assign mem_wb_in.WriteEnable = ex_mem_out.WriteEnable;
+  assign mem_wb_in.WriteSel    = ex_mem_out.WriteSel;
+  assign mem_wb_in.ALUOut      = ex_mem_out.ALUOut;
+  assign mem_wb_in.MemAl       = MemAl_M;
+  assign mem_wb_in.RD          = ex_mem_out.RD;
+
+  // Update register content at positive clock edge
+  always_ff @(posedge CLK) begin
+    if (CLR_M_WB)        mem_wb_out <= '0;
+    else if (!EN_n_M_WB) mem_wb_out <= mem_wb_in;
+  end
+
+  // ===========================================================================
+  // WB stage
+  // ===========================================================================
+
+  assign RegData = mem_wb_out.WriteSel ? mem_wb_out.MemAl : mem_wb_out.ALUOut;   // 1 = memory load data
 
 endmodule
