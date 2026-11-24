@@ -4,7 +4,7 @@ module alu (
     // given two 32-bit inputs a and b, perform the operation specified by op and return the result
     input  logic [31:0] a,
     input  logic [31:0] b,
-    input  alu_ops      op,
+    input  logic [3:0]  op,
     output logic [31:0] result,
     output logic        zero_flag,
     output logic        less_flag
