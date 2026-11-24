@@ -14,6 +14,7 @@ module instruction_mem #(
 
     /*  Instruction file formating
         -Use hex and one instruction per line
+        -Comments are ignored if they use //
         -Memory is word-addressable, may need to be changed later to byte-addressable
         -No prefix is needed for hex values(no 0x0000abcd) - 32 bit is 8 hex digits
     */
