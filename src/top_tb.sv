@@ -21,9 +21,17 @@ module top_tb();
   // Clock with period of 10 time units
   always #5 CLK = ~CLK;
   
+  // Load a hex file into the instruction memory of the CPU
+  /*  Instruction file formating
+    -Use hex and one instruction per line, do not add a prefix or radix to the hex value
+    -Comments are ignored if they start with //, can be used after hex or on a separate line
+  */
+  initial begin
+    static string file = "instrR.hex";
+    $readmemh(file, dut.u_instruction_mem.instr_mem); //Load instructions from file instruction memory
+  end
+  
   // Simple directed testing
-  // NOTE: Instruction_mem file needs to be modified to select instructions that are loaded, this should be
-  // changed later so that it can be chosen within the testbench
   initial begin
     // Reset the processor, advance one clock edge, then set back to low so program can begin
     RST = 1'b1;
@@ -35,19 +43,19 @@ module top_tb();
     
     $display("============================");
     
-    $display("%h", dut.u_register_file.registers[1]);
-    $display("%h", dut.u_register_file.registers[2]);
-    $display("%h", dut.u_register_file.registers[3]);
-    $display("%h", dut.u_register_file.registers[4]);
-    $display("%h", dut.u_register_file.registers[5]);
-    $display("%h", dut.u_register_file.registers[6]);
-    $display("%h", dut.u_register_file.registers[7]);
-    $display("%h", dut.u_register_file.registers[8]);
-    $display("%h", dut.u_register_file.registers[9]);
-    $display("%h", dut.u_register_file.registers[10]);
-    $display("%h", dut.u_register_file.registers[11]);
-    $display("%h", dut.u_register_file.registers[12]);
-    $display("%h", dut.u_register_file.registers[13]);
+    $display("X1: %h", dut.u_register_file.registers[1]);
+    $display("X2: %h", dut.u_register_file.registers[2]);
+    $display("X3: %h", dut.u_register_file.registers[3]);
+    $display("X4: %h", dut.u_register_file.registers[4]);
+    $display("X5: %h", dut.u_register_file.registers[5]);
+    $display("X6: %h", dut.u_register_file.registers[6]);
+    $display("X7: %h", dut.u_register_file.registers[7]);
+    $display("X8: %h", dut.u_register_file.registers[8]);
+    $display("X9: %h", dut.u_register_file.registers[9]);
+    $display("X10: %h", dut.u_register_file.registers[10]);
+    $display("X11: %h", dut.u_register_file.registers[11]);
+    $display("X12: %h", dut.u_register_file.registers[12]);
+    $display("X13: %h", dut.u_register_file.registers[13]);
    
     
     $display("Test finished");
