@@ -1,0 +1,90 @@
+// ====== Store, then load test ======
+//
+// Expected final register values (registers not listed stay 0):
+//   x1  = 0x12345678
+//   x2  = 0xFEDCBA98
+//   x10 = 0x00000040
+//   x11 = 0x12345678
+//   x12 = 0xFEDCBA98
+//   x13 = 0xBA985678
+//   x14 = 0x78987898
+//   x15 = 0x12349878
+//   x16 = 0x5678BA98
+//   x17 = 0xFFFFBA98
+//   x18 = 0x0000BA98
+//   x19 = 0xFFFFFEDC
+//   x20 = 0x0000FEDC
+//   x21 = 0x00005678
+//   x22 = 0xFFFFFF98
+//   x23 = 0x00000098
+//   x24 = 0xFFFFFFBA
+//   x25 = 0xFFFFFFDC
+//   x26 = 0xFFFFFFFE
+//   x27 = 0x000000FE
+//   x28 = 0x00000078
+//   x29 = 0x00000012
+//
+// Expected final data memory (32-bit words, little-endian):
+//   mem[0x40] = 0x12345678
+//   mem[0x44] = 0xFEDCBA98
+//   mem[0x48] = 0xBA985678
+//   mem[0x4C] = 0x78987898
+//   mem[0x50] = 0x12349878
+//   mem[0x54] = 0x5678BA98
+//
+04000513 // addi x10, x0, 64     : x10 = 0x40 (base address of the data region)
+123450B7 // lui x1, 0x12345      : x1 = 0x12345000
+FEDCC137 // lui x2, 0xFEDCC      : x2 = 0xFEDCC000
+67808093 // addi x1, x1, 1656    : x1 = x1 + 1656 -> x1 = 0x12345678
+A9810113 // addi x2, x2, -1384   : x2 = x2 + -1384 -> x2 = 0xFEDCBA98
+00252223 // sw x2, 4(x10)        : word at 0x44 = 0xFEDCBA98
+00152023 // sw x1, 0(x10)        : word at 0x40 = 0x12345678
+00251523 // sh x2, 10(x10)       : bytes 0x4A-0x4B = 0xBA98
+00151423 // sh x1, 8(x10)        : bytes 0x48-0x49 = 0x5678 -> word at 0x48 = 0xBA985678
+001507A3 // sb x1, 15(x10)       : byte 0x4F = 0x78
+00250723 // sb x2, 14(x10)       : byte 0x4E = 0x98
+001506A3 // sb x1, 13(x10)       : byte 0x4D = 0x78
+00250623 // sb x2, 12(x10)       : byte 0x4C = 0x98 -> word at 0x4C = 0x78987898
+00152823 // sw x1, 16(x10)       : word at 0x50 = 0x12345678
+002508A3 // sb x2, 17(x10)       : byte 0x51 = 0x98 -> word at 0x50 = 0x12349878 (other bytes untouched)
+00252A23 // sw x2, 20(x10)       : word at 0x54 = 0xFEDCBA98
+00151B23 // sh x1, 22(x10)       : bytes 0x56-0x57 = 0x5678 -> word at 0x54 = 0x5678BA98 (low half untouched)
+00052583 // lw x11, 0(x10)       : x11 = word at 0x40 = 0x12345678
+00452603 // lw x12, 4(x10)       : x12 = word at 0x44 = 0xFEDCBA98
+00852683 // lw x13, 8(x10)       : x13 = word at 0x48 = 0xBA985678
+00C52703 // lw x14, 12(x10)      : x14 = word at 0x4C = 0x78987898
+01052783 // lw x15, 16(x10)      : x15 = word at 0x50 = 0x12349878
+01452803 // lw x16, 20(x10)      : x16 = word at 0x54 = 0x5678BA98
+00451883 // lh x17, 4(x10)       : x17 = sign-extended 0xBA98 = 0xFFFFBA98
+00455903 // lhu x18, 4(x10)      : x18 = zero-extended 0xBA98 = 0x0000BA98
+00651983 // lh x19, 6(x10)       : x19 = sign-extended 0xFEDC = 0xFFFFFEDC
+00655A03 // lhu x20, 6(x10)      : x20 = zero-extended 0xFEDC = 0x0000FEDC
+00051A83 // lh x21, 0(x10)       : x21 = 0x5678, positive so no extension change = 0x00005678
+00450B03 // lb x22, 4(x10)       : x22 = sign-extended byte 0x98 (lane 0) = 0xFFFFFF98
+00454B83 // lbu x23, 4(x10)      : x23 = zero-extended byte 0x98 = 0x00000098
+00550C03 // lb x24, 5(x10)       : x24 = sign-extended byte 0xBA (lane 1) = 0xFFFFFFBA
+00650C83 // lb x25, 6(x10)       : x25 = sign-extended byte 0xDC (lane 2) = 0xFFFFFFDC
+00750D03 // lb x26, 7(x10)       : x26 = sign-extended byte 0xFE (lane 3) = 0xFFFFFFFE
+00754D83 // lbu x27, 7(x10)      : x27 = zero-extended byte 0xFE = 0x000000FE
+00050E03 // lb x28, 0(x10)       : x28 = byte 0x78, positive = 0x00000078
+00350E83 // lb x29, 3(x10)       : x29 = byte 0x12, positive = 0x00000012
+00000013 // nop                  : nop: no operation
+00000013 // nop                  : nop: no operation
+00000013 // nop                  : nop: no operation
+00000013 // nop                  : nop: no operation
+00000013 // nop                  : nop: no operation
+00000013 // nop                  : nop: no operation
+00000013 // nop                  : nop: no operation
+00000013 // nop                  : nop: no operation
+00000013 // nop                  : nop: no operation
+00000013 // nop                  : nop: no operation
+00000013 // nop                  : nop: no operation
+00000013 // nop                  : nop: no operation
+00000013 // nop                  : nop: no operation
+00000013 // nop                  : nop: no operation
+00000013 // nop                  : nop: no operation
+00000013 // nop                  : nop: no operation
+00000013 // nop                  : nop: no operation
+00000013 // nop                  : nop: no operation
+00000013 // nop                  : nop: no operation
+00000013 // nop                  : nop: no operation

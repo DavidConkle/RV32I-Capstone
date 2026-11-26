@@ -10,6 +10,7 @@ module control_unit
   output logic       RS1Source,
   output logic       RS2Source,
   output logic       MemWrite,
+  output logic       MemRead,
   output logic       WriteSel,
   output logic [2:0] Funct3,
   output logic       WriteEnable
@@ -106,6 +107,7 @@ module control_unit
         RS2Source = 1'b1;
         WriteSel = 1'b1;
         WriteEnable = 1'b1;
+        MemRead = 1'b1;
       end
       
       OP_STORE: begin

@@ -161,6 +161,7 @@ module rv32i_top (
     .RS1Source   (id_ex_in.RS1Source),
     .RS2Source   (id_ex_in.RS2Source),
     .MemWrite    (id_ex_in.MemWrite),
+    .MemRead     (id_ex_in.MemRead),
     .WriteSel    (id_ex_in.WriteSel),
     .Funct3      (id_ex_in.Funct3),
     .WriteEnable (id_ex_in.WriteEnable)
@@ -242,6 +243,7 @@ module rv32i_top (
   assign ex_mem_in.Funct3      = id_ex_out.Funct3;
   assign ex_mem_in.WriteSel    = id_ex_out.WriteSel;
   assign ex_mem_in.MemWrite    = id_ex_out.MemWrite;
+  assign ex_mem_in.MemRead     = id_ex_out.MemRead;
   assign ex_mem_in.ALUOut      = ALUOut_EX;
   assign ex_mem_in.D2Fwd       = D2Fwd_EX;
   assign ex_mem_in.RD          = id_ex_out.RD;
@@ -257,12 +259,14 @@ module rv32i_top (
   // ===========================================================================
 
   // rst is tied low
-  mem_interface u_mem_interface (
+  data_mem u_data_mem (
     .clk       (CLK),
     .rst       (1'b0),
+    .funct3    (ex_mem_out.Funct3),
     .addr      (ex_mem_out.ALUOut),
     .wdata     (ex_mem_out.D2Fwd),
     .write_en  (ex_mem_out.MemWrite),
+    .read_en   (ex_mem_out.MemRead),				// May be used data when memory is a cache
     
     .rdata     (Mem_M)
   );
